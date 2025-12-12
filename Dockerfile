@@ -10,7 +10,7 @@ RUN ./gradlew dependencies --no-daemon
 COPY src ./src
 RUN ./gradlew build --no-daemon -x test
 
-FROM eclipse-temurin:21-jre
+FROM eclipse-temurin:25-jre
 WORKDIR /app
 
 RUN groupadd -r spring && useradd -r -g spring spring
