@@ -1,0 +1,25 @@
+services:
+  banking-db:
+    image: postgres:17-alpine
+    container_name: banking-db
+    environment:
+      # These should not be hardcoded but managed via infrastructure secrets
+      - POSTGRES_DB=banking
+      - POSTGRES_USER=admin
+      - POSTGRES_PASSWORD=secret
+    ports:
+      - "5432:5432"
+  banking-app:
+    build: .
+    container_name: banking-app
+    ports:
+      - "8080:8080"
+    environment:
+      # These should not be hardcoded but managed via infrastructure secrets
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://banking-db:5432/banking
+      - SPRING_DATASOURCE_USERNAME=admin
+      - SPRING_DATASOURCE_PASSWORD=secret
+      - EXTERNAL_LOGGING_URL=https://httpstat.us/200
+    depends_on:
+        - banking-db
+    restart: always

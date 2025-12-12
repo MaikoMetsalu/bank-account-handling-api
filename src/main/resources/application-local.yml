@@ -1,0 +1,9 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/banking
+    username: admin
+    password: secret
+# External logging configuration
+external:
+  logging:
+    url: https://httpstat.us/200
