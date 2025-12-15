@@ -1,6 +1,7 @@
 package com.demo.bankaccounthandlingapi.entities;
 
 import com.demo.bankaccounthandlingapi.exceptions.IllegalBalanceUpdateException;
+import com.demo.bankaccounthandlingapi.exceptions.InsufficientFundsException;
 import jakarta.persistence.*;
 
 import java.math.BigDecimal;
@@ -79,5 +80,12 @@ public class Balance {
             throw new IllegalBalanceUpdateException(this.account.getId());
         }
         this.amount = this.amount.add(amount);
+    }
+
+    public void debit(BigDecimal amountToDebit) {
+        if (this.amount.compareTo(amountToDebit) < 0) {
+            throw new InsufficientFundsException(this.account.getId(), this.currency);
+        }
+        this.amount = this.amount.subtract(amountToDebit);
     }
 }

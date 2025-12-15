@@ -33,9 +33,6 @@ public class TransactionLog {
     @Column(nullable = false, length = 20)
     private TransactionType type;
 
-    @Column(name = "exchange_rate", precision = 19, scale = 6)
-    private BigDecimal exchangeRate;
-
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
@@ -91,15 +88,6 @@ public class TransactionLog {
 
     public TransactionLog setType(TransactionType type) {
         this.type = type;
-        return this;
-    }
-
-    public BigDecimal getExchangeRate() {
-        return exchangeRate;
-    }
-
-    public TransactionLog setExchangeRate(BigDecimal exchangeRate) {
-        this.exchangeRate = exchangeRate;
         return this;
     }
 

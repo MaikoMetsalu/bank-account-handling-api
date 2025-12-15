@@ -4,6 +4,7 @@ import com.demo.bankaccounthandlingapi.dtos.BalanceResponse;
 import com.demo.bankaccounthandlingapi.entities.Balance;
 import com.demo.bankaccounthandlingapi.enums.TransactionType;
 import com.demo.bankaccounthandlingapi.exceptions.AccountNotFoundException;
+import com.demo.bankaccounthandlingapi.exceptions.InsufficientFundsException;
 import com.demo.bankaccounthandlingapi.repositories.AccountRepository;
 import com.demo.bankaccounthandlingapi.repositories.BalanceRepository;
 import org.springframework.stereotype.Service;
@@ -39,6 +40,26 @@ public class BalanceService {
         balanceRepository.save(balance);
 
         transactionLogService.logTransaction(account, TransactionType.DEPOSIT, amount, currency);
+
+        return new BalanceResponse(balance.getCurrency(), balance.getAmount());
+    }
+
+    @Transactional
+    public BalanceResponse debit(Long accountId, String currency, BigDecimal amount) {
+        if (amount.compareTo(BigDecimal.ZERO) < 0) {
+            throw new IllegalArgumentException("Debit amount must be positive");
+        }
+        final var account = accountRepository.findById(accountId)
+                .orElseThrow(() -> new AccountNotFoundException(accountId));
+
+        Balance balance = balanceRepository.findBalanceByAccountIdAndCurrency(accountId, currency)
+                .orElseThrow(() -> new InsufficientFundsException(accountId, currency));
+
+        balance.debit(amount);
+
+        balanceRepository.save(balance);
+
+        transactionLogService.logTransaction(account, TransactionType.WITHDRAWAL, amount, currency);
 
         return new BalanceResponse(balance.getCurrency(), balance.getAmount());
     }

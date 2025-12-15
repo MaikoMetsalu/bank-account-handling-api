@@ -19,5 +19,5 @@ CREATE TABLE transaction_log (
     amount DECIMAL(19, 2) NOT NULL,
     currency VARCHAR(3) NOT NULL,
     type VARCHAR(20) NOT NULL,
-    timestamp TIMESTAMP NOT NULL DEFAULT NOW()
+    created_at TIMESTAMP NOT NULL DEFAULT NOW()
 );

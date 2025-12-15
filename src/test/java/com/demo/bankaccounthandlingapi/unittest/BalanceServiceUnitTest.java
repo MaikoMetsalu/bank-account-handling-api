@@ -3,14 +3,14 @@ package com.demo.bankaccounthandlingapi.unittest;
 import com.demo.bankaccounthandlingapi.dtos.BalanceResponse;
 import com.demo.bankaccounthandlingapi.entities.Account;
 import com.demo.bankaccounthandlingapi.entities.Balance;
-import com.demo.bankaccounthandlingapi.entities.TransactionLog;
 import com.demo.bankaccounthandlingapi.enums.TransactionType;
 import com.demo.bankaccounthandlingapi.exceptions.AccountNotFoundException;
 import com.demo.bankaccounthandlingapi.exceptions.IllegalBalanceUpdateException;
+import com.demo.bankaccounthandlingapi.exceptions.InsufficientFundsException;
 import com.demo.bankaccounthandlingapi.repositories.AccountRepository;
 import com.demo.bankaccounthandlingapi.repositories.BalanceRepository;
-import com.demo.bankaccounthandlingapi.repositories.TransactionLogRepository;
 import com.demo.bankaccounthandlingapi.services.BalanceService;
+import com.demo.bankaccounthandlingapi.services.TransactionLogService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -41,16 +41,13 @@ class BalanceServiceTest {
     private AccountRepository accountRepository;
 
     @Mock
-    private TransactionLogRepository transactionLogRepository;
+    private TransactionLogService transactionLogService;
 
     @InjectMocks
     private BalanceService balanceService;
 
     @Captor
     private ArgumentCaptor<Balance> balanceCaptor;
-
-    @Captor
-    private ArgumentCaptor<TransactionLog> transactionLogCaptor;
 
     private static final Long ACCOUNT_ID = 100L;
     private static final String CURRENCY_USD = "USD";
@@ -84,13 +81,7 @@ class BalanceServiceTest {
         Balance savedBalance = balanceCaptor.getValue();
         assertThat(savedBalance.getAmount()).isEqualByComparingTo(new BigDecimal("75.00"));
 
-        verify(transactionLogRepository).save(transactionLogCaptor.capture());
-        TransactionLog savedLog = transactionLogCaptor.getValue();
-
-        assertThat(savedLog.getAccount()).isEqualTo(account);
-        assertThat(savedLog.getAmount()).isEqualTo(depositAmount);
-        assertThat(savedLog.getType()).isEqualTo(TransactionType.DEPOSIT);
-        assertThat(savedLog.getReferenceId()).isNotNull();
+        verify(transactionLogService).logTransaction(account, TransactionType.DEPOSIT, depositAmount, CURRENCY_USD);
     }
 
     @Test
@@ -132,7 +123,7 @@ class BalanceServiceTest {
                 .hasMessageContaining(String.valueOf(ACCOUNT_ID));
 
         verifyNoInteractions(balanceRepository);
-        verifyNoInteractions(transactionLogRepository);
+        verifyNoInteractions(transactionLogService);
     }
 
     @ParameterizedTest(name = "Amount \"{0}\" should throw exception")
@@ -150,6 +141,81 @@ class BalanceServiceTest {
         assertThatThrownBy(() ->
                 balanceService.deposit(ACCOUNT_ID, CURRENCY_USD, new BigDecimal(amount))
         ).isInstanceOf(IllegalBalanceUpdateException.class);
+
+        verify(balanceRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Should successfully debit account with sufficient funds")
+    void debit_sufficientFunds_shouldDeductSuccessfully() {
+        // given
+        BigDecimal initialAmount = new BigDecimal("100.00");
+        BigDecimal debitAmount = new BigDecimal("40.00");
+        BigDecimal expectedBalance = new BigDecimal("60.00");
+
+        Account account = new Account().setId(ACCOUNT_ID);
+        Balance existingBalance = new Balance()
+                .setAccount(account)
+                .setCurrency(CURRENCY_USD)
+                .setAmount(initialAmount);
+
+        when(accountRepository.findById(ACCOUNT_ID)).thenReturn(Optional.of(account));
+        when(balanceRepository.findBalanceByAccountIdAndCurrency(ACCOUNT_ID, CURRENCY_USD))
+                .thenReturn(Optional.of(existingBalance));
+
+        // when
+        BalanceResponse response = balanceService.debit(ACCOUNT_ID, CURRENCY_USD, debitAmount);
+
+        // then
+        assertThat(response.amount()).isEqualByComparingTo(expectedBalance);
+
+        verify(balanceRepository).save(balanceCaptor.capture());
+        Balance savedBalance = balanceCaptor.getValue();
+        assertThat(savedBalance.getAmount()).isEqualByComparingTo(expectedBalance);
+
+        verify(transactionLogService).logTransaction(account, TransactionType.WITHDRAWAL, debitAmount, CURRENCY_USD);
+    }
+
+    @Test
+    @DisplayName("Should throw InsufficientFundsException when balance is too low")
+    void debit_insufficientFunds_throwsException() {
+        // given
+        BigDecimal initialAmount = new BigDecimal("10.00");
+        BigDecimal debitAmount = new BigDecimal("50.00");
+
+        Account account = new Account().setId(ACCOUNT_ID);
+        Balance existingBalance = new Balance()
+                .setAccount(account)
+                .setCurrency(CURRENCY_USD)
+                .setAmount(initialAmount);
+
+        when(accountRepository.findById(ACCOUNT_ID)).thenReturn(Optional.of(account));
+        when(balanceRepository.findBalanceByAccountIdAndCurrency(ACCOUNT_ID, CURRENCY_USD))
+                .thenReturn(Optional.of(existingBalance));
+
+        // when / then
+        assertThatThrownBy(() ->
+                balanceService.debit(ACCOUNT_ID, CURRENCY_USD, debitAmount)
+        ).isInstanceOf(InsufficientFundsException.class);
+
+        verify(balanceRepository, never()).save(any());
+        verifyNoInteractions(transactionLogService);
+    }
+
+    @Test
+    @DisplayName("Should throw InsufficientFundsException if balance entry does not exist for currency")
+    void debit_noBalanceEntry_throwsException() {
+        // given
+        Account account = new Account().setId(ACCOUNT_ID);
+
+        when(accountRepository.findById(ACCOUNT_ID)).thenReturn(Optional.of(account));
+        when(balanceRepository.findBalanceByAccountIdAndCurrency(ACCOUNT_ID, CURRENCY_USD))
+                .thenReturn(Optional.empty());
+
+        // when / then
+        assertThatThrownBy(() ->
+                balanceService.debit(ACCOUNT_ID, CURRENCY_USD, BigDecimal.TEN)
+        ).isInstanceOf(InsufficientFundsException.class);
 
         verify(balanceRepository, never()).save(any());
     }
