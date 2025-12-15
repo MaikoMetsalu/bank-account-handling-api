@@ -13,4 +13,15 @@ public class GlobalExceptionHandler {
         return ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, ex.getMessage());
     }
 
+    @ExceptionHandler({InsufficientFundsException.class, AccountNotFoundException.class,
+            CurrencyExchangeException.class, IllegalBalanceUpdateException.class})
+    public ProblemDetail handleBadRequestExceptions(RuntimeException ex) {
+        return ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, ex.getMessage());
+    }
+
+    @ExceptionHandler(ExternalSystemException.class)
+    public ProblemDetail handleExternalSystemException(ExternalSystemException ex) {
+        return ProblemDetail.forStatusAndDetail(HttpStatus.SERVICE_UNAVAILABLE, ex.getMessage());
+    }
+
 }

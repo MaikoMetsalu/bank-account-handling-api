@@ -6,4 +6,4 @@ spring:
 # External logging configuration
 external:
   logging:
-    url: https://httpstat.us/200
+    url: https://tools-httpstatus.pickup-services.com/200

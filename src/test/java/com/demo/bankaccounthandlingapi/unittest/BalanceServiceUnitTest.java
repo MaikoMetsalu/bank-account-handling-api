@@ -5,24 +5,24 @@ import com.demo.bankaccounthandlingapi.entities.Account;
 import com.demo.bankaccounthandlingapi.entities.Balance;
 import com.demo.bankaccounthandlingapi.enums.TransactionType;
 import com.demo.bankaccounthandlingapi.exceptions.AccountNotFoundException;
+import com.demo.bankaccounthandlingapi.exceptions.CurrencyExchangeException;
 import com.demo.bankaccounthandlingapi.exceptions.IllegalBalanceUpdateException;
 import com.demo.bankaccounthandlingapi.exceptions.InsufficientFundsException;
 import com.demo.bankaccounthandlingapi.repositories.AccountRepository;
 import com.demo.bankaccounthandlingapi.repositories.BalanceRepository;
 import com.demo.bankaccounthandlingapi.services.BalanceService;
+import com.demo.bankaccounthandlingapi.services.ExchangeRateService;
 import com.demo.bankaccounthandlingapi.services.TransactionLogService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
-import org.mockito.ArgumentCaptor;
-import org.mockito.Captor;
-import org.mockito.InjectMocks;
-import org.mockito.Mock;
+import org.mockito.*;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
+import java.util.Currency;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -42,6 +42,9 @@ class BalanceServiceTest {
 
     @Mock
     private TransactionLogService transactionLogService;
+
+    @Mock
+    private ExchangeRateService exchangeRateService;
 
     @InjectMocks
     private BalanceService balanceService;
@@ -218,5 +221,78 @@ class BalanceServiceTest {
         ).isInstanceOf(InsufficientFundsException.class);
 
         verify(balanceRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Exchange USD -> EUR: Should debit source and credit target with converted amount")
+    void exchange_happyPath_shouldConvertAndSaveBoth() {
+        // given
+        BigDecimal sourceAmount = new BigDecimal("100.00");
+        BigDecimal amountToExchange = new BigDecimal("50.00");
+        BigDecimal convertedAmount = new BigDecimal("45.00");
+
+        Account account = new Account().setId(ACCOUNT_ID);
+
+        Balance sourceBalance = new Balance()
+                .setAccount(account)
+                .setCurrency("USD")
+                .setAmount(sourceAmount);
+
+        when(accountRepository.findById(ACCOUNT_ID)).thenReturn(Optional.of(account));
+
+        when(balanceRepository.findBalanceByAccountIdAndCurrency(ACCOUNT_ID, "USD"))
+                .thenReturn(Optional.of(sourceBalance));
+
+        when(balanceRepository.findBalanceByAccountIdAndCurrency(ACCOUNT_ID, "EUR"))
+                .thenReturn(Optional.empty());
+
+        when(exchangeRateService.isSupported(any(Currency.class))).thenReturn(true);
+        when(exchangeRateService.convert(any(), any(), eq(amountToExchange)))
+                .thenReturn(convertedAmount);
+
+        // when
+        BalanceResponse response = balanceService.exchange(ACCOUNT_ID, "USD", "EUR", amountToExchange);
+
+        // then
+        assertThat(response.currency()).isEqualTo("EUR");
+        assertThat(response.amount()).isEqualByComparingTo(convertedAmount);
+
+        InOrder inOrder = inOrder(balanceRepository, transactionLogService);
+
+        inOrder.verify(balanceRepository).save(sourceBalance);
+        assertThat(sourceBalance.getAmount()).isEqualByComparingTo(new BigDecimal("50.00"));
+
+        inOrder.verify(balanceRepository).save(balanceCaptor.capture());
+
+        Balance targetBalance = balanceCaptor.getValue();
+        assertThat(targetBalance.getCurrency()).isEqualTo("EUR");
+        assertThat(targetBalance.getAmount()).isEqualByComparingTo(convertedAmount);
+        assertThat(targetBalance.getAccount()).isEqualTo(account);
+
+        inOrder.verify(transactionLogService).logTransaction(account, TransactionType.EXCHANGE_OUT, amountToExchange, "USD");
+        inOrder.verify(transactionLogService).logTransaction(account, TransactionType.EXCHANGE_IN, convertedAmount, "EUR");
+    }
+
+    @Test
+    @DisplayName("Exchange fails for same currency")
+    void exchange_sameCurrency_throwsException() {
+        assertThatThrownBy(() ->
+                balanceService.exchange(ACCOUNT_ID, "USD", "USD", BigDecimal.TEN)
+        ).isInstanceOf(CurrencyExchangeException.class)
+                .hasMessageContaining("same currency");
+
+        verifyNoInteractions(exchangeRateService);
+    }
+
+    @Test
+    @DisplayName("Get Balance: Should return 0.00 if balance does not exist")
+    void getBalance_missing_returnsZero() {
+        when(balanceRepository.findBalanceByAccountIdAndCurrency(ACCOUNT_ID, "JPY"))
+                .thenReturn(Optional.empty());
+
+        BalanceResponse response = balanceService.getBalance(ACCOUNT_ID, "JPY");
+
+        assertThat(response.amount()).isEqualByComparingTo(BigDecimal.ZERO);
+        assertThat(response.currency()).isEqualTo("JPY");
     }
 }

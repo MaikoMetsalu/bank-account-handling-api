@@ -19,7 +19,7 @@ services:
       - SPRING_DATASOURCE_URL=jdbc:postgresql://banking-db:5432/banking
       - SPRING_DATASOURCE_USERNAME=admin
       - SPRING_DATASOURCE_PASSWORD=secret
-      - EXTERNAL_LOGGING_URL=https://httpstat.us/200
+      - EXTERNAL_LOGGING_URL=https://tools-httpstatus.pickup-services.com/200
     depends_on:
         - banking-db
     restart: always
