@@ -1,4 +1,4 @@
-# Bank account api
+# Bank account handling api
 #### Microservice for handling multi-currency bank accounts, transactions, and currency exchange.
 
 ### Built with
@@ -21,3 +21,21 @@
    docker-compose up --build
    ```
 4. The application will be accessible at `http://localhost:8080`
+
+#### Accessing the Application
+API Documentation (Swagger UI): `http://localhost:8080/swagger-ui.html`
+
+#### Running tests
+* Prerequisite: Docker must be running.
+
+To run tests, use the following command:
+```bash
+./gradlew test
+```
+
+#### Example flow
+1. Create a new bank account (POST `/accounts`)
+2. Deposit funds into the account (POST `/{accountId}/balance/deposit`)
+3. Withdraw funds from the account (POST `/{accountId}/balance/withdraw`)
+4. Transfer funds between accounts (POST `/balance/transfer`)
+5. Check account balance (GET `/{accountId}/balance`)
