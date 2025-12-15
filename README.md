@@ -1,4 +1,10 @@
 # Bank account handling api
+### Important notes
+- This project is a sample implementation of a banking API application.
+- It is not intended for production use.
+- Security is non-existent. Some features are simplified or omitted due to time restrictions.
+- All currency exchange rates are mocked and do not reflect real-world values.
+
 #### Microservice for handling multi-currency bank accounts, transactions, and currency exchange.
 
 ### Built with
